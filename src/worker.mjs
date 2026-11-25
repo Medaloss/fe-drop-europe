@@ -15,7 +15,10 @@ export class StockHub {
     if(this.sockets.has(locale)||(this.retry.get(locale)?.at||0)>now)return;
     this.sockets.set(locale,{pending:true});
     try {
-      const res=await fetch(`https://live.jlplen.io/v1/ws?locale=${locale}&models=5090,5080,5070&monitorHealth=1`,{headers:{Upgrade:'websocket',Origin:'https://notify-fe.plen.io'},signal:AbortSignal.timeout(12000)});
+      const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),12000);
+      let res;
+      try { res=await fetch(`https://live.jlplen.io/v1/ws?locale=${locale}&models=5090,5080,5070&monitorHealth=1`,{headers:{Upgrade:'websocket',Origin:'https://notify-fe.plen.io'},signal:abort.signal}); }
+      finally { clearTimeout(timeout); }
       const ws=res.webSocket;if(!ws)throw Error('WebSocket refusé');
       ws.accept();ws.openedAt=Date.now();this.sockets.set(locale,ws);this.retry.delete(locale);
       ws.addEventListener('message',e=>{
