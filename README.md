@@ -6,7 +6,7 @@ Suivi indépendant des RTX 5090/5080/5070 Founders Edition dans 12 pays europée
 
 Site publié : https://fe-drop-europe.pages.dev — service séparé `fe-drop-europe-monitor`. 19 tests locaux réussis. Rendus bureau et mobile, filtres pays/carte vérifiés dans Chrome. Les 12 flux ont réellement répondu depuis Cloudflare et restent connectés après correction du délai d’ouverture. Deux contrôles successifs ont trouvé 19 puis 35 stocks frais sur 36 ; les autres étaient inconnus. La source signale `source_degraded`. Cela ne garantit aucun stock.
 
-E-mails implémentés mais non activés et non testés en livraison réelle. Un relais Google Apps Script est préparé, en attente d’autorisation du propriétaire. Telegram non implémenté. Le flux ne fournit pas les prix ; l’appel ponctuel au catalogue NVIDIA a expiré après 20 secondes. Aucun tarif n’est inventé.
+Relais Google Apps Script déployé et autorisé par le propriétaire. Trois confirmations réelles ont été envoyées ; leur présence dans les messages envoyés et la réception dans la boîte du propriétaire ont été vérifiées. Chaque destinataire doit ouvrir son lien et confirmer dans les 24 heures. Aucun vrai drop par e-mail ne peut encore être attesté. Telegram non implémenté. Le flux ne fournit pas les prix ; l’appel ponctuel au catalogue NVIDIA a expiré après 20 secondes. Aucun tarif n’est inventé.
 
 ## Sources et limites
 
@@ -31,9 +31,9 @@ E-mails réservés aux adresses invitées. Confirmation valable 24 h, usage uniq
 
 [Resend](https://resend.com/pricing) : offre gratuite, 100 e-mails/jour. Plafonds applicatifs conservateurs : 90 tentatives/jour, 2800/mois. Vérifier aussi le quota mensuel de l’offre choisie et garder les dépassements payants désactivés. Un domaine expéditeur autorisé est nécessaire pour plusieurs destinataires ; un achat de domaine pourrait coûter de l’argent et n’est pas autorisé implicitement. Aucun coût engagé.
 
-## Déploiement restant
+## Déploiement et exploitation
 
-Les étapes de publication 1–6 ci-dessous ont été réalisées. Les commits du dépôt déclenchent désormais les déploiements du site et du moniteur. Les étapes d’activation des e-mails restent à terminer.
+Les étapes de publication 1–6 ci-dessous ont été réalisées. Les commits du dépôt déclenchent désormais les déploiements du site et du moniteur. Le relais Gmail est actif ; les confirmations individuelles restent à effectuer. Le code reproductible du relais est dans `scripts/gmail-relay.gs`.
 
 Alternative sans domaine : relais Google Apps Script via `EMAIL_RELAY_URL` et `ALLOWED_EMAILS` configurés dans le Worker. Le relais s’exécute sous le compte Gmail du propriétaire avec MailApp (envoi uniquement) et UrlFetchApp (appel du site). Son URL publique ne reçoit ni adresse ni texte libre : elle reçoit un identifiant aléatoire temporaire ; elle demande le message au domaine fixe du site. Le serveur ne révèle un message que pour cet identifiant vivant, supprimé après l’appel. Déduplication secondaire dans les propriétés du script, verrou de concurrence, reçus conservés trois jours. En cas d’incertitude après un envoi, le relais évite de renvoyer automatiquement le message. Le partage du code reste privé ; seule l’URL d’exécution est appelable. Le choix d’accès public et l’autorisation Google nécessitent la validation du propriétaire.
 
@@ -45,7 +45,7 @@ Gmail personnel : quota Apps Script typique de 100 destinataires par jour partag
 4. Créer un projet Pages distinct `fe-drop-europe`, dépôt `Medaloss/fe-drop-europe`, branche `main`, sortie `public`, sans compilation. Ou `npm run deploy:pages` après création du projet. Vérifier la liaison `MONITOR`.
 5. Vérifier le domaine attribué ; mettre `PUBLIC_ORIGIN` à jour si différent, puis redéployer.
 6. Vérifier `/api/status` et la fraîcheur des 36 lignes depuis Cloudflare. Les sondes locales ne prouvent pas l’accès depuis Cloudflare.
-7. Configurer uniquement dans les secrets du Worker : `RESEND_API_KEY`, `EMAIL_FROM`, `ALLOWED_EMAILS` (adresses invitées séparées par virgules). Jamais dans le dépôt ou le chat.
+7. Transport actif : secrets `EMAIL_RELAY_URL` et `ALLOWED_EMAILS` dans le Worker. Alternative Resend : `RESEND_API_KEY`, `EMAIL_FROM`, `ALLOWED_EMAILS`. Jamais de secrets ni de destinataires dans le dépôt.
 8. Vérifier un vrai cycle inscription/confirmation/désinscription. Le transport peut être testé avec un message explicitement TEST, hors historique. Ne pas fabriquer un drop. Une alerte de stock réelle ne sera attestée qu’à réception d’un vrai événement.
 
 ## Tests
@@ -54,4 +54,4 @@ Gmail personnel : quota Apps Script typique de 100 destinataires par jour partag
 
 `npm run preview` : front-end local ; `/api/*` indique explicitement que Cloudflare n’est pas encore déployé. Pas de faux stocks.
 
-Avant livraison complète : migration et alarmes Cloudflare, données réelles, filtres, rendu mobile et livraison réelle des e-mails restent à vérifier. Les tests locaux ne valident pas ces intégrations distantes.
+Vérifications distantes effectuées : publication Pages/Worker, données réelles des 12 flux, filtres, rendu mobile, envoi des trois confirmations et réception chez le propriétaire. Les tests locaux couvrent confirmation à usage unique, désinscription, déduplication et protection du relais. La réception chez les deux autres destinataires et un véritable drop restent à confirmer. Aucun faux drop injecté.
