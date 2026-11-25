@@ -4,12 +4,12 @@ const digest=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-
 export default {fetch(request,env){return env.HUB.get(env.HUB.idFromName('europe-singleton')).fetch(request);}};
 export class StockHub {
   constructor(state,env){
-    this.state=state;this.env=env;this.packets=new Map();this.sockets=new Map();this.retry=new Map();this.queue=Promise.resolve();
+    this.state=state;this.env=env;this.packets=new Map();this.sockets=new Map();this.retry=new Map();this.mailJobs=new Map();this.queue=Promise.resolve();
     this.state.blockConcurrencyWhile(async()=>{this.data=await state.storage.get('data')||{history:[],seen:{},subscribers:[],outbox:[],quota:{}};});
   }
   serial(fn){ const p=this.queue.then(fn);this.queue=p.catch(()=>{});return p; }
   save(){return this.state.storage.put('data',this.data);}
-  emailReady(){return !!(this.env.RESEND_API_KEY&&this.env.EMAIL_FROM&&this.env.ALLOWED_EMAILS);}
+  emailReady(){return !!(this.env.ALLOWED_EMAILS&&(this.env.EMAIL_RELAY_URL||(this.env.RESEND_API_KEY&&this.env.EMAIL_FROM)));}
   async connect(region){
     const locale=region.locale, now=Date.now();
     if(this.sockets.has(locale)||(this.retry.get(locale)?.at||0)>now)return;
@@ -69,6 +69,21 @@ export class StockHub {
     if(q.day!==day){q.day=day;q.daily=0;}if(q.month!==month){q.month=month;q.monthly=0;}
     if(q.daily>=90||q.monthly>=2800)throw Error('Quota gratuit protégé : envoi suspendu.');
     q.daily++;q.monthly++;await this.save();
+    if(this.env.EMAIL_RELAY_URL){
+      const relay=new URL(this.env.EMAIL_RELAY_URL);
+      if(relay.origin!=='https://script.google.com'||!relay.pathname.endsWith('/exec'))throw Error('Adresse du relais invalide.');
+      const allowed=this.env.ALLOWED_EMAILS.split(',').map(s=>s.trim().toLowerCase());
+      if(!allowed.includes(to.toLowerCase()))throw Error('Destinataire non invité.');
+      // Short-lived unguessable capability. No permanent API key, message or recipient in public source.
+      const token=crypto.randomUUID()+crypto.randomUUID();
+      this.mailJobs.set(token,{id:key,to,subject,text,expires:Date.now()+120000});
+      try {
+        const response=await fetch(relay.href,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:token}),signal:AbortSignal.timeout(45000)});
+        if(!response.ok)throw Error('Relais Gmail inaccessible.');
+        const result=await response.json();if(result.ok!==true)throw Error('Envoi Gmail non confirmé.');
+      }finally{this.mailJobs.delete(token);}
+      return;
+    }
     const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${this.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify({from:this.env.EMAIL_FROM,to:[to],subject,text}),signal:AbortSignal.timeout(10000)});
     if(!r.ok)throw Error(`Envoi refusé (${r.status}).`);
   }
@@ -90,6 +105,11 @@ export class StockHub {
   }
   async fetch(request){
     const url=new URL(request.url),path=url.pathname;
+    // Callback must remain outside the serial mail queue to avoid a delivery deadlock.
+    if(path.startsWith('/api/mail-job/')&&request.method==='GET'){
+      const token=path.slice('/api/mail-job/'.length),job=/^[a-f0-9-]{72}$/.test(token)?this.mailJobs.get(token):null;
+      return job&&job.expires>Date.now()?json(job):json({error:'Message inexistant ou expiré.'},404);
+    }
     if(!await this.state.storage.getAlarm())this.state.waitUntil(this.upkeep());
     if(path==='/api/status'&&request.method==='GET'){
       const rows=REGIONS.flatMap(r=>rowsFor(this.packets.get(r.locale),r));
