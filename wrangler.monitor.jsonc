@@ -1,0 +1,9 @@
+{
+  "name":"fe-drop-europe-monitor",
+  "main":"src/worker.mjs",
+  "compatibility_date":"2026-11-25",
+  "workers_dev":false,
+  "durable_objects":{"bindings":[{"name":"HUB","class_name":"StockHub"}]},
+  "migrations":[{"tag":"v1","new_sqlite_classes":["StockHub"]}],
+  "vars":{"PUBLIC_ORIGIN":"https://fe-drop-europe.pages.dev"}
+}
